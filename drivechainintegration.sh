@@ -6,7 +6,7 @@
 # projects. Then a series of integration tests will run.
 
 #
-# Stage 0: clone repositories
+# Warn user, delete old data, clone repositories
 #
 
 VERSION=0
@@ -56,7 +56,7 @@ git clone https://github.com/DriveNetTESTDRIVE/DriveNet
 
 
 #
-# Stage 1: build repositories & run their unit tests
+# Build repositories & run their unit tests
 #
 
 cd bitcoin &&
@@ -85,8 +85,7 @@ cd ../
 
 
 #
-# Stage 2: Get mainchain configured and running. Mine first 100
-# mainchain blocks.
+# Get mainchain configured and running. Mine first 100 mainchain blocks.
 #
 
 # Create configuration file for mainchain
@@ -144,7 +143,7 @@ fi
 
 
 #
-# Stage 3: Activate a sidechain
+# Activate a sidechain
 #
 
 # Create a sidechain proposal
@@ -267,7 +266,7 @@ echo "$LISTACTIVESIDECHAINS"
 
 
 #
-# Stage 4: Get sidechain configured and running
+# Get sidechain configured and running
 #
 
 echo
@@ -314,7 +313,7 @@ fi
 
 
 #
-# Stage 5: start BMM mining the sidechain
+# Start BMM mining the sidechain
 #
 
 # The first time that we call this it should create the first BMM request and
@@ -379,20 +378,24 @@ do
     # Wait a little bit
     echo
     echo "Waiting for new BMM request to make it to the mainchain..."
-    sleep 1s
+    sleep 0.26s
 
-    echo "Mining mainchain block $COUNTER"
+    echo "Mining mainchain block"
     # Generate mainchain block
     ./DriveNet/src/drivenet-cli --regtest generate 1
 
-    NEW_BLOCK_COUNT=$(( CURRENT_BLOCKS + COUNTER ))
+    CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
+
 
     # Check that mainchain block was connected
     GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
-    COUNT=`echo $GETINFO | grep -c "\"blocks\": $NEW_BLOCK_COUNT"`
+
+    echo $GETINFO
+    echo $CURRENT_BLOCKS
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
-        echo "Mainchain has $NEW_BLOCK_COUNT blocks"
+        echo "Mainchain has $CURRENT_BLOCKS blocks"
     else
         echo
         echo "ERROR failed to mine block!"
@@ -408,7 +411,7 @@ do
 
     # Check that BMM block was added to the side chain
     GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
-    COUNT=`echo $GETINFO | grep -c "\"blocks\": $NEW_SIDE_BLOCK_COUNT"`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
         echo "Sidechain connected BMM block!"
@@ -422,7 +425,7 @@ do
         # to a bug on main or side and not the testing environment which has
         # perfect conditions, move on and try again just like a real node would.
         # TODO renable exit here?
-        # Subtract 1 from the NEW_SIDE_BLOCK_COUNT before moving on, since we
+        # Subtract 1 before moving on, since we
         # failed to actually add it.
         CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS - 1 ))
     fi
@@ -430,12 +433,165 @@ do
     ((COUNTER++))
 done
 
-#
-# stage X: deposit
-#
+
+
+
+
+
+
 
 #
-# Stage x: withdraw from a sidechain
+# Deposit to the sidechain
+#
+
+# Create sidechain deposit
+ADDRESS=`./bitcoin/src/testchain-cli getnewaddress sidechain legacy`
+./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1
+
+# Mine some blocks and BMM the sidechain so it can process the deposit
+COUNTER=1
+while [ $COUNTER -le 10 ]
+do
+    # Wait a little bit
+    echo
+    echo "Waiting for new BMM request to make it to the mainchain..."
+    sleep 0.26s
+
+    echo "Mining mainchain block"
+    # Generate mainchain block
+    ./DriveNet/src/drivenet-cli --regtest generate 1
+
+    CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
+
+    # Check that mainchain block was connected
+    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Mainchain has $CURRENT_BLOCKS blocks"
+    else
+        echo
+        echo "ERROR failed to mine block!"
+        exit
+    fi
+
+    # Refresh BMM on the sidechain
+    echo
+    echo "Refreshing BMM on the sidechain..."
+    ./bitcoin/src/testchain-cli refreshbmm
+
+    CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
+
+    # Check that BMM block was added to the side chain
+    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Sidechain connected BMM block!"
+    else
+        echo
+        echo "ERROR sidechain did not connect BMM block!"
+        CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS - 1 ))
+    fi
+
+    ((COUNTER++))
+done
+
+# Check if the deposit made it to the sidechain
+LIST_TRANSACTIONS=`./bitcoin/src/testchain-cli listtransactions`
+COUNT=`echo $LIST_TRANSACTIONS | grep -c "\"address\": \"$ADDRESS\""`
+if [ "$COUNT" -eq 1 ]; then
+    echo
+    echo "Sidechain received deposit!"
+    echo "Deposit: "
+    echo "$LIST_TRANSACTIONS"
+else
+    echo
+    echo "ERROR sidechain did not receive deposit!"
+    exit
+fi
+
+echo
+echo "Now we will BMM the sidechain until the deposit has matured!"
+
+# Sleep here so user can read the deposit debug output
+sleep 5s
+
+# Mature the deposit on the sidechain, so that it can be withdrawn
+COUNTER=1
+while [ $COUNTER -le 121 ]
+do
+    # Wait a little bit
+    echo
+    echo "Waiting for new BMM request to make it to the mainchain..."
+    sleep 0.26s
+
+    echo "Mining mainchain block"
+    # Generate mainchain block
+    ./DriveNet/src/drivenet-cli --regtest generate 1
+
+    CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
+
+    # Check that mainchain block was connected
+    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Mainchain has $CURRENT_BLOCKS blocks"
+    else
+        echo
+        echo "ERROR failed to mine block!"
+        exit
+    fi
+
+    # Refresh BMM on the sidechain
+    echo
+    echo "Refreshing BMM on the sidechain..."
+    ./bitcoin/src/testchain-cli refreshbmm
+
+    CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
+
+    # Check that BMM block was added to the side chain
+    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Sidechain connected BMM block!"
+    else
+        echo
+        echo "ERROR sidechain did not connect BMM block!"
+        CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS - 1 ))
+    fi
+
+    ((COUNTER++))
+done
+
+# Check that the deposit has been added to our sidechain balance
+BALANCE=`./bitcoin/src/testchain-cli getbalance`
+BC=`echo "$BALANCE>0.9" | bc`
+if [ $BC -eq 1 ]; then
+    echo
+    echo "Sidechain balance updated, deposit matured!"
+    echo "Sidechain balance: $BALANCE"
+else
+    echo
+    echo "ERROR sidechain balance not what it should be... Balance: $BALANCE!"
+    exit
+fi
+
+
+# Test sending the deposit around to other addresses on the sidechain
+# TODO
+
+
+
+
+
+
+
+
+#
+# Withdraw from the sidechain
 #
 
 #
@@ -452,6 +608,6 @@ echo "Make sure to backup log files you want to keep before running again!"
 
 echo
 echo -e "\e[32mIf you made it here that means everything probably worked!\e[0m"
-echo "If you noticed any issues but the script still made it to the end, please"
+echo "If you notice any issues but the script still made it to the end, please"
 echo "open an issue on GitHub!"
 
