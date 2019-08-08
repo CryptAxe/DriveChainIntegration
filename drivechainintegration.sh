@@ -11,6 +11,27 @@
 
 VERSION=0
 
+# Read arguments
+SKIP_CLONE=0 # Skip cloning the repositories from github
+SKIP_BUILD=0 # Skip pulling and building repositories
+SKIP_CHECK=0 # Skip make check on repositories
+for arg in "$@"
+do
+    if [ "$arg" == "--help" ]; then
+        echo "The following command line options are available:"
+        echo "--skip_clone"
+        echo "--skip_build"
+        echo "--skip_check"
+        exit
+    elif [ "$arg" == "--skip_clone" ]; then
+        SKIP_CLONE=1
+    elif [ "$arg" == "--skip_build" ]; then
+        SKIP_BUILD=1
+    elif [ "$arg" == "--skip_check" ]; then
+        SKIP_CHECK=1
+    fi
+done
+
 clear
 
 echo -e "\e[36m██████╗ ██████╗ ██╗██╗   ██╗███████╗███╗   ██╗███████╗████████╗\e[0m"
@@ -45,8 +66,10 @@ rm -rf ~/.drivenet
 rm -rf ~/.testchain
 
 # These can fail, meaning that the repository is already downloaded
-git clone https://github.com/drivechain-project/bitcoin
-git clone https://github.com/DriveNetTESTDRIVE/DriveNet
+if [ $SKIP_CLONE -ne 1 ]; then
+    git clone https://github.com/drivechain-project/bitcoin
+    git clone https://github.com/DriveNetTESTDRIVE/DriveNet
+fi
 
 
 
@@ -59,21 +82,39 @@ git clone https://github.com/DriveNetTESTDRIVE/DriveNet
 # Build repositories & run their unit tests
 #
 
-cd bitcoin &&
-git checkout sidetests &&
-git pull &&
-./autogen.sh &&
-./configure &&
-make -j 9 &&
-make check
+cd bitcoin
+if [ $SKIP_BUILD -ne 1 ]; then
+    git checkout sidetests &&
+    git pull &&
+    ./autogen.sh &&
+    ./configure &&
+    make -j 9
+fi
 
-cd ../DriveNet &&
-git checkout TESTDRIVE &&
-git pull &&
-./autogen.sh &&
-./configure &&
-make -j 9 &&
-make check
+if [ $SKIP_CHECK -ne 1 ]; then
+    make check
+    if [ $? -ne 0 ]; then
+        echo "Make check failed!"
+        exit
+    fi
+fi
+
+cd ../DriveNet
+if [ $SKIP_BUILD -ne 1 ]; then
+    git checkout TESTDRIVE &&
+    git pull &&
+    ./autogen.sh &&
+    ./configure &&
+    make -j 9
+fi
+
+if [ $SKIP_CHECK -ne 1 ]; then
+    make check
+    if [ $? -ne 0 ]; then
+        echo "Make check failed!"
+        exit
+    fi
+fi
 
 cd ../
 
@@ -284,7 +325,7 @@ echo "The sidechain testchain will now be started"
 sleep 5s
 
 # Start the sidechain and test that it can receive commands and has 0 blocks
-./bitcoin/src/qt/testchain-qt --mainchainrpcport=18443 &
+./bitcoin/src/qt/testchain-qt --mainchainregtest --wtprimethreshold=1 --mainchainrpcport=18443 &
 
 echo
 echo "Waiting for testchain to start"
@@ -368,12 +409,12 @@ fi
 
 # Mine some more BMM blocks and make sure that they all make it to the sidechain
 echo
-echo "Now we will test mining 86 more BMM blocks"
+echo "Now we will test mining more BMM blocks"
 
 CURRENT_BLOCKS=357
 CURRENT_SIDE_BLOCKS=1
 COUNTER=1
-while [ $COUNTER -le 86 ]
+while [ $COUNTER -le 10 ]
 do
     # Wait a little bit
     echo
@@ -450,7 +491,7 @@ ADDRESS=`./bitcoin/src/testchain-cli getnewaddress sidechain legacy`
 
 # Mine some blocks and BMM the sidechain so it can process the deposit
 COUNTER=1
-while [ $COUNTER -le 10 ]
+while [ $COUNTER -le 200 ]
 do
     # Wait a little bit
     echo
@@ -593,6 +634,81 @@ fi
 #
 # Withdraw from the sidechain
 #
+
+# Get a mainchain address
+MAINCHAIN_ADDRESS=`./DriveNet/src/drivenet-cli --regtest getnewaddress mainchain legacy`
+
+# Call the CreateWT RPC
+echo
+echo "We will now create a wt on the sidechain"
+./bitcoin/src/testchain-cli createwt $MAINCHAIN_ADDRESS 0.5
+sleep 3s
+
+# Mine enough BMM blocks for a WT^ to be created and sent to the mainchain
+echo
+echo "Now we will mine enough BMM blocks for the sidechain to create a WT^"
+COUNTER=1
+while [ $COUNTER -le 180 ]
+do
+    # Wait a little bit
+    echo
+    echo "Waiting for new BMM request to make it to the mainchain..."
+    sleep 0.26s
+
+    echo "Mining mainchain block"
+    # Generate mainchain block
+    ./DriveNet/src/drivenet-cli --regtest generate 1
+
+    CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
+
+    # Check that mainchain block was connected
+    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Mainchain has $CURRENT_BLOCKS blocks"
+    else
+        echo
+        echo "ERROR failed to mine block!"
+        exit
+    fi
+
+    # Refresh BMM on the sidechain
+    echo
+    echo "Refreshing BMM on the sidechain..."
+    ./bitcoin/src/testchain-cli refreshbmm
+
+    CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
+
+    # Check that BMM block was added to the side chain
+    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
+    if [ "$COUNT" -eq 1 ]; then
+        echo
+        echo "Sidechain connected BMM block!"
+    else
+        echo
+        echo "ERROR sidechain did not connect BMM block!"
+        CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS - 1 ))
+    fi
+
+    ((COUNTER++))
+done
+
+# Check if WT^ was created
+
+# TODO check on WT^ status
+
+# Check if balance of mainchain address received WT^ payout
+WT_BALANCE=`./DriveNet/src/drivenet-cli --regtest getbalance mainchain`
+BC=`echo "$WT_BALANCE>0.4" | bc`
+if [ $BC -eq 1 ]; then
+    echo "WT^ payout received!"
+    echo "amount: $WT_BALANCE"
+else
+    echo "WT^ payout not received..."
+    exit
+fi
 
 #
 # Stage x: Receive WT^ payout
