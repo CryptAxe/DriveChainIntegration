@@ -67,6 +67,8 @@ rm -rf ~/.testchain
 
 # These can fail, meaning that the repository is already downloaded
 if [ $SKIP_CLONE -ne 1 ]; then
+    echo
+    echo "Cloning repositories"
     git clone https://github.com/drivechain-project/bitcoin
     git clone https://github.com/DriveNetTESTDRIVE/DriveNet
 fi
@@ -81,7 +83,8 @@ fi
 #
 # Build repositories & run their unit tests
 #
-
+echo
+echo "Building repositories"
 cd bitcoin
 if [ $SKIP_BUILD -ne 1 ]; then
     git checkout sidetests &&
@@ -130,6 +133,8 @@ cd ../
 #
 
 # Create configuration file for mainchain
+echo
+echo "Create mainchain configuration file"
 mkdir ~/.drivenet/
 touch ~/.drivenet/drivenet.conf
 echo "rpcuser=patrick" > ~/.drivenet/drivenet.conf
@@ -310,10 +315,9 @@ echo "$LISTACTIVESIDECHAINS"
 # Get sidechain configured and running
 #
 
+# Create configuration file for sidechain testchain
 echo
 echo "Creating sidechain configuration file"
-
-# Create configuration file for sidechain testchain
 mkdir ~/.testchain/
 touch ~/.testchain/testchain.conf
 echo "rpcuser=patrick" > ~/.testchain/testchain.conf
@@ -703,10 +707,17 @@ done
 WT_BALANCE=`./DriveNet/src/drivenet-cli --regtest getbalance mainchain`
 BC=`echo "$WT_BALANCE>0.4" | bc`
 if [ $BC -eq 1 ]; then
-    echo "WT^ payout received!"
+    echo
+    echo
+    echo -e "\e[32m==========================\e[0m"
+    echo
+    echo -e "\e[1mWT^ payout received!\e[0m"
     echo "amount: $WT_BALANCE"
+    echo
+    echo -e "\e[32m==========================\e[0m"
 else
-    echo "WT^ payout not received..."
+    echo
+    echo -e "\e[31mError: WT^ payout not received!\e[0m"
     exit
 fi
 
