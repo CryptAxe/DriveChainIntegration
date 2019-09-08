@@ -142,7 +142,7 @@ echo "rpcpassword=integrationtesting" >> ~/.drivenet/drivenet.conf
 echo "server=1" >> ~/.drivenet/drivenet.conf
 
 # We start the qt version so that the user can watch what is going on
-./DriveNet/src/qt/drivenet-qt --regtest &
+./DriveNet/src/qt/drivenet-qt --connect=0 --regtest --defaultwtprimevote=upvote &
 
 echo
 echo "Waiting for mainchain to start"
@@ -329,7 +329,7 @@ echo "The sidechain testchain will now be started"
 sleep 5s
 
 # Start the sidechain and test that it can receive commands and has 0 blocks
-./bitcoin/src/qt/testchain-qt --mainchainregtest --wtprimethreshold=1 --verifybmmacceptheader --verifybmmreadblock --verifybmmcheckblock --mainchainrpcport=18443 &
+./bitcoin/src/qt/testchain-qt --connect=0 --mainchainregtest --verifybmmacceptheader --verifybmmreadblock --verifybmmcheckblock --mainchainrpcport=18443 &
 
 echo
 echo "Waiting for testchain to start"
