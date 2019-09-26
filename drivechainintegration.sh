@@ -47,6 +47,9 @@ echo "The functional unit tests will be run for DriveNet and sidechain(s)."
 echo "If those tests pass, the integration test script will try to go through"
 echo "the process of BMM mining, deposit to and withdraw from the sidechain(s)."
 echo
+echo "We will also restart the software many times to check for issues with"
+echo "shutdown and initialization."
+echo
 echo -e "\e[1mREAD: YOUR DATA DIRECTORIES WILL BE DELETED\e[0m"
 echo
 echo "Your data directories ex: ~/.drivenet & ~/.testchainplus and any other"
@@ -61,14 +64,137 @@ if [ "$WARNING_ANSWER" != "yes" ]; then
     exit
 fi
 
+REINDEX=0
 
+#
+# Functions to help the script
+#
+function startdrivenet {
+    if [ $REINDEX -eq 1 ]; then
+        echo
+        echo "DriveNet will be reindexed"
+        echo
+        ./DriveNet/src/qt/drivenet-qt \
+        --reindex \
+        --connect=0 \
+        --regtest \
+        --defaultwtprimevote=upvote &
+
+        # Also set REINDEX back to 0
+        REINDEX=0
+    else
+        ./DriveNet/src/qt/drivenet-qt \
+        --connect=0 \
+        --regtest \
+        --defaultwtprimevote=upvote &
+    fi
+}
+
+function starttestchainplustest {
+    ./bitcoin/src/qt/testchainplus-qt \
+    --connect=0 \
+    --mainchainregtest \
+    --verifybmmacceptheader \
+    --verifybmmreadblock \
+    --verifybmmcheckblock \
+    --mainchainrpcport=18443 &
+}
+
+function restartdrivenet {
+    #
+    # Shutdown DriveNet, restart it, and make sure nothing broke.
+    # Exits the script if anything did break.
+    #
+    # TODO check return value of python json parsing and exit if it failed
+    # TODO use jq instead of python
+    echo
+    echo "We will now restart DriveNet & verify its state after restarting!"
+    sleep 3s
+
+    # Record the state before restart
+    HASHSCDB=`./DriveNet/src/drivenet-cli --regtest getscdbhash`
+    HASHSCDB=`echo $HASHSCDB | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdb"]'`
+
+    HASHSCDBTOTAL=`./DriveNet/src/drivenet-cli --regtest gettotalscdbhash`
+    HASHSCDBTOTAL=`echo $HASHSCDBTOTAL | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdbtotal"]'`
+
+    # Count doesn't return a json array like the above commands - so no parsing
+    COUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    # getbestblockhash also doesn't return an array
+    BESTBLOCK=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+
+    # Restart
+    ./DriveNet/src/drivenet-cli --regtest stop
+    sleep 5s # Wait a little bit incase shutdown takes a while
+    startdrivenet
+
+    echo
+    echo "Waiting for mainchain to start"
+    sleep 10s
+
+    # Verify the state after restart
+    HASHSCDBRESTART=`./DriveNet/src/drivenet-cli --regtest getscdbhash`
+    HASHSCDBRESTART=`echo $HASHSCDBRESTART | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdb"]'`
+
+    HASHSCDBTOTALRESTART=`./DriveNet/src/drivenet-cli --regtest gettotalscdbhash`
+    HASHSCDBTOTALRESTART=`echo $HASHSCDBTOTALRESTART | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdbtotal"]'`
+
+    COUNTRESTART=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    BESTBLOCKRESTART=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+
+    if [ "$HASHSCDB" != "$HASHSCDBRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "HASHSCDB != HASHSCDBRESTART"
+        echo "$HASHSCDB != $HASHSCDBRESTART"
+        exit
+    fi
+    if [ "$HASHSCDBTOTAL" != "$HASHSCDBTOTALRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "HASHSCDBTOTAL != HASHSCDBTOTALRESTART"
+        echo "$HASHSCDBTOTAL != $HASHSCDBTOTALRESTART"
+        exit
+    fi
+    if [ "$COUNT" != "$COUNTRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "COUNT != COUNTRESTART"
+        echo "$COUNT != $COUNTRESTART"
+        exit
+    fi
+    if [ "$BESTBLOCK" != "$BESTBLOCKRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "BESTBLOCK != BESTBLOCKRESTART"
+        echo "$BESTBLOCK != $BESTBLOCKRESTART"
+        exit
+    fi
+
+    echo
+    echo "DriveNet restart and state check check successful!"
+    sleep 3s
+}
+
+
+
+
+
+
+
+
+# Remove old data directories
 rm -rf ~/.drivenet
 rm -rf ~/.testchainplus
+
+
+
+
+
+
+
 
 # These can fail, meaning that the repository is already downloaded
 if [ $SKIP_CLONE -ne 1 ]; then
     echo
     echo "Cloning repositories"
+    echo "Fatal error here just means the repository is already cloned - no problem"
     git clone https://github.com/drivechain-project/bitcoin
     git clone https://github.com/DriveNetTESTDRIVE/DriveNet
 fi
@@ -141,8 +267,8 @@ echo "rpcuser=patrick" > ~/.drivenet/drivenet.conf
 echo "rpcpassword=integrationtesting" >> ~/.drivenet/drivenet.conf
 echo "server=1" >> ~/.drivenet/drivenet.conf
 
-# We start the qt version so that the user can watch what is going on
-./DriveNet/src/qt/drivenet-qt --connect=0 --regtest --defaultwtprimevote=upvote &
+# Start DriveNet-qt
+startdrivenet
 
 echo
 echo "Waiting for mainchain to start"
@@ -180,6 +306,9 @@ else
     echo "ERROR failed to mine first 100 blocks!"
     exit
 fi
+
+# Shutdown DriveNet, restart it, and make sure nothing broke
+restartdrivenet
 
 
 
@@ -225,6 +354,11 @@ else
     exit
 fi
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+# This time we will also reindex
+REINDEX=1
+restartdrivenet
+
 # Check that proposal has been added to the chain and ready for voting
 LISTACTIVATION=`./DriveNet/src/drivenet-cli --regtest listsidechainactivationstatus`
 COUNT=`echo $LISTACTIVATION | grep -c "\"title\": \"testchainplustest\""`
@@ -268,6 +402,10 @@ else
     exit
 fi
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+REINDEX=1
+restartdrivenet
+
 echo
 echo "Will now mine enough blocks to activate the sidechain"
 sleep 5s
@@ -304,7 +442,8 @@ echo "listactivesidechains:"
 echo
 echo "$LISTACTIVESIDECHAINS"
 
-
+# Shutdown DriveNet, restart it, and make sure nothing broke
+restartdrivenet
 
 
 
@@ -329,7 +468,7 @@ echo "The sidechain testchainplus will now be started"
 sleep 5s
 
 # Start the sidechain and test that it can receive commands and has 0 blocks
-./bitcoin/src/qt/testchainplus-qt --connect=0 --mainchainregtest --verifybmmacceptheader --verifybmmreadblock --verifybmmcheckblock --mainchainrpcport=18443 &
+starttestchainplustest
 
 echo
 echo "Waiting for testchainplus to start"
@@ -390,6 +529,10 @@ else
     echo "ERROR failed to mine blocks!"
     exit
 fi
+
+# Shutdown DriveNet, restart it, and make sure nothing broke
+REINDEX=1
+restartdrivenet
 
 # TODO verifiy that bmm request was added to chain and removed from mempool
 
@@ -482,6 +625,10 @@ done
 
 
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+restartdrivenet
+
+
 
 
 
@@ -556,6 +703,9 @@ else
     exit
 fi
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+restartdrivenet
+
 echo
 echo "Now we will BMM the sidechain until the deposit has matured!"
 
@@ -611,6 +761,7 @@ do
     ((COUNTER++))
 done
 
+
 # Check that the deposit has been added to our sidechain balance
 BALANCE=`./bitcoin/src/testchainplus-cli getbalance`
 BC=`echo "$BALANCE>0.9" | bc`
@@ -631,6 +782,9 @@ fi
 
 
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+REINDEX=1
+restartdrivenet
 
 
 
@@ -721,6 +875,9 @@ else
     exit
 fi
 
+# Shutdown DriveNet, restart it, and make sure nothing broke
+restartdrivenet
+
 #
 # Stage x: Receive WT^ payout
 #
@@ -728,8 +885,7 @@ echo
 echo
 echo -e "\e[32mDriveNet integration testing completed!\e[0m"
 echo
-echo "You must manually shut down instances of mainchain and sidechain(s)"
-echo "started by the script once you are done looking at the results via GUI"
+echo "Will now shut down!"
 echo
 echo "Make sure to backup log files you want to keep before running again!"
 
@@ -738,3 +894,8 @@ echo -e "\e[32mIf you made it here that means everything probably worked!\e[0m"
 echo "If you notice any issues but the script still made it to the end, please"
 echo "open an issue on GitHub!"
 
+# Stop the binaries
+echo
+echo
+./DriveNet/src/drivenet-cli --regtest stop
+./bitcoin/src/testchainplus-cli stop
