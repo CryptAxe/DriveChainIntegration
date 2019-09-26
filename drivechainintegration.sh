@@ -49,7 +49,7 @@ echo "the process of BMM mining, deposit to and withdraw from the sidechain(s)."
 echo
 echo -e "\e[1mREAD: YOUR DATA DIRECTORIES WILL BE DELETED\e[0m"
 echo
-echo "Your data directories ex: ~/.drivenet & ~/.testchain and any other"
+echo "Your data directories ex: ~/.drivenet & ~/.testchainplus and any other"
 echo "sidechain data directories will be deleted!"
 echo
 echo -e "\e[31mWARNING: THIS WILL DELETE YOUR DRIVECHAIN & SIDECHAIN DATA!\e[0m"
@@ -63,7 +63,7 @@ fi
 
 
 rm -rf ~/.drivenet
-rm -rf ~/.testchain
+rm -rf ~/.testchainplus
 
 # These can fail, meaning that the repository is already downloaded
 if [ $SKIP_CLONE -ne 1 ]; then
@@ -87,7 +87,7 @@ echo
 echo "Building repositories"
 cd bitcoin
 if [ $SKIP_BUILD -ne 1 ]; then
-    git checkout sidetests &&
+    git checkout testchainplustest &&
     git pull &&
     ./autogen.sh &&
     ./configure &&
@@ -104,7 +104,7 @@ fi
 
 cd ../DriveNet
 if [ $SKIP_BUILD -ne 1 ]; then
-    git checkout TESTDRIVE &&
+    git checkout drivechainplustest &&
     git pull &&
     ./autogen.sh &&
     ./configure &&
@@ -193,17 +193,17 @@ fi
 #
 
 # Create a sidechain proposal
-./DriveNet/src/drivenet-cli --regtest createsidechainproposal "testchain" "testchain for integration test" "6cbb79de8861f2cceb3dfc4a0e343571b9c3b7228a095a71c7aa8e83fe76527f"
+./DriveNet/src/drivenet-cli --regtest createsidechainproposal "testchainplustest" "testchainplus for integration test" "0186ff51f527ffdcf2413d50bdf8fab1feb20e5f82815dad48c73cf462b8b313"
 
 # Check that proposal was cached (not in chain yet)
 LISTPROPOSALS=`./DriveNet/src/drivenet-cli --regtest listsidechainproposals`
-COUNT=`echo $LISTPROPOSALS | grep -c "\"title\": \"testchain\""`
+COUNT=`echo $LISTPROPOSALS | grep -c "\"title\": \"testchainplustest\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
-    echo "Sidechain proposal for sidechain testchain has been created!"
+    echo "Sidechain proposal for sidechain testchainplus has been created!"
 else
     echo
-    echo "ERROR failed to create testchain sidechain proposal!"
+    echo "ERROR failed to create testchainplus sidechain proposal!"
     exit
 fi
 
@@ -227,7 +227,7 @@ fi
 
 # Check that proposal has been added to the chain and ready for voting
 LISTACTIVATION=`./DriveNet/src/drivenet-cli --regtest listsidechainactivationstatus`
-COUNT=`echo $LISTACTIVATION | grep -c "\"title\": \"testchain\""`
+COUNT=`echo $LISTACTIVATION | grep -c "\"title\": \"testchainplustest\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
     echo "Sidechain proposal made it into the chain!"
@@ -289,7 +289,7 @@ fi
 
 # Check that the sidechain has been activated
 LISTACTIVESIDECHAINS=`./DriveNet/src/drivenet-cli --regtest listactivesidechains`
-COUNT=`echo $LISTACTIVESIDECHAINS | grep -c "\"title\": \"testchain\""`
+COUNT=`echo $LISTACTIVESIDECHAINS | grep -c "\"title\": \"testchainplustest\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
     echo "Sidechain has activated!"
@@ -315,31 +315,31 @@ echo "$LISTACTIVESIDECHAINS"
 # Get sidechain configured and running
 #
 
-# Create configuration file for sidechain testchain
+# Create configuration file for sidechain testchainplus
 echo
 echo "Creating sidechain configuration file"
-mkdir ~/.testchain/
-touch ~/.testchain/testchain.conf
-echo "rpcuser=patrick" > ~/.testchain/testchain.conf
-echo "rpcpassword=integrationtesting" >> ~/.testchain/testchain.conf
-echo "server=1" >> ~/.testchain/testchain.conf
+mkdir ~/.testchainplus/
+touch ~/.testchainplus/testchainplus.conf
+echo "rpcuser=patrick" > ~/.testchainplus/testchainplus.conf
+echo "rpcpassword=integrationtesting" >> ~/.testchainplus/testchainplus.conf
+echo "server=1" >> ~/.testchainplus/testchainplus.conf
 
 echo
-echo "The sidechain testchain will now be started"
+echo "The sidechain testchainplus will now be started"
 sleep 5s
 
 # Start the sidechain and test that it can receive commands and has 0 blocks
-./bitcoin/src/qt/testchain-qt --connect=0 --mainchainregtest --verifybmmacceptheader --verifybmmreadblock --verifybmmcheckblock --mainchainrpcport=18443 &
+./bitcoin/src/qt/testchainplus-qt --connect=0 --mainchainregtest --verifybmmacceptheader --verifybmmreadblock --verifybmmcheckblock --mainchainrpcport=18443 &
 
 echo
-echo "Waiting for testchain to start"
+echo "Waiting for testchainplus to start"
 sleep 5s
 
 echo
 echo "Checking if the sidechain has started"
 
 # Test that sidechain can receive commands and has 0 blocks
-GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 0"`
 if [ "$COUNT" -eq 1 ]; then
     echo "Sidechain up and running!"
@@ -365,7 +365,7 @@ fi
 # send it to the mainchain node, which will add it to the mempool
 echo
 echo "Going to refresh BMM on the sidechain and send BMM request to mainchain"
-./bitcoin/src/testchain-cli refreshbmm
+./bitcoin/src/testchainplus-cli refreshbmm
 
 # TODO check that mainchain has BMM request in mempool
 
@@ -399,10 +399,10 @@ fi
 echo
 echo "Will now refresh BMM on the sidechain again and look for our BMM commit"
 echo "BMM block will be connected to the sidechain if BMM commit was made."
-./bitcoin/src/testchain-cli refreshbmm
+./bitcoin/src/testchainplus-cli refreshbmm
 
 # Check that BMM block was added to the sidechain
-GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 1"`
 if [ "$COUNT" -eq 1 ]; then
     echo "Sidechain connected BMM block!"
@@ -450,12 +450,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchain-cli refreshbmm
+    ./bitcoin/src/testchainplus-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -490,7 +490,7 @@ done
 #
 
 # Create sidechain deposit
-ADDRESS=`./bitcoin/src/testchain-cli getnewaddress sidechain legacy`
+ADDRESS=`./bitcoin/src/testchainplus-cli getnewaddress sidechain legacy`
 ./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1
 
 # Mine some blocks and BMM the sidechain so it can process the deposit
@@ -523,12 +523,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchain-cli refreshbmm
+    ./bitcoin/src/testchainplus-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -543,7 +543,7 @@ do
 done
 
 # Check if the deposit made it to the sidechain
-LIST_TRANSACTIONS=`./bitcoin/src/testchain-cli listtransactions`
+LIST_TRANSACTIONS=`./bitcoin/src/testchainplus-cli listtransactions`
 COUNT=`echo $LIST_TRANSACTIONS | grep -c "\"address\": \"$ADDRESS\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -592,12 +592,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchain-cli refreshbmm
+    ./bitcoin/src/testchainplus-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -612,7 +612,7 @@ do
 done
 
 # Check that the deposit has been added to our sidechain balance
-BALANCE=`./bitcoin/src/testchain-cli getbalance`
+BALANCE=`./bitcoin/src/testchainplus-cli getbalance`
 BC=`echo "$BALANCE>0.9" | bc`
 if [ $BC -eq 1 ]; then
     echo
@@ -645,7 +645,7 @@ MAINCHAIN_ADDRESS=`./DriveNet/src/drivenet-cli --regtest getnewaddress mainchain
 # Call the CreateWT RPC
 echo
 echo "We will now create a wt on the sidechain"
-./bitcoin/src/testchain-cli createwt $MAINCHAIN_ADDRESS 0.5
+./bitcoin/src/testchainplus-cli createwt $MAINCHAIN_ADDRESS 0.5
 sleep 3s
 
 # Mine enough BMM blocks for a WT^ to be created and sent to the mainchain
@@ -680,12 +680,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchain-cli refreshbmm
+    ./bitcoin/src/testchainplus-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchain-cli getmininginfo`
+    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
