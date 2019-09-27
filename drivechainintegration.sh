@@ -142,18 +142,6 @@ function restartdrivenet {
     COUNTRESTART=`./DriveNet/src/drivenet-cli --regtest getblockcount`
     BESTBLOCKRESTART=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
 
-    if [ "$HASHSCDB" != "$HASHSCDBRESTART" ]; then
-        echo "Error after restarting DriveNet!"
-        echo "HASHSCDB != HASHSCDBRESTART"
-        echo "$HASHSCDB != $HASHSCDBRESTART"
-        exit
-    fi
-    if [ "$HASHSCDBTOTAL" != "$HASHSCDBTOTALRESTART" ]; then
-        echo "Error after restarting DriveNet!"
-        echo "HASHSCDBTOTAL != HASHSCDBTOTALRESTART"
-        echo "$HASHSCDBTOTAL != $HASHSCDBTOTALRESTART"
-        exit
-    fi
     if [ "$COUNT" != "$COUNTRESTART" ]; then
         echo "Error after restarting DriveNet!"
         echo "COUNT != COUNTRESTART"
@@ -167,9 +155,53 @@ function restartdrivenet {
         exit
     fi
 
+    if [ "$HASHSCDB" != "$HASHSCDBRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "HASHSCDB != HASHSCDBRESTART"
+        echo "$HASHSCDB != $HASHSCDBRESTART"
+        exit
+    fi
+    if [ "$HASHSCDBTOTAL" != "$HASHSCDBTOTALRESTART" ]; then
+        echo "Error after restarting DriveNet!"
+        echo "HASHSCDBTOTAL != HASHSCDBTOTALRESTART"
+        echo "$HASHSCDBTOTAL != $HASHSCDBTOTALRESTART"
+        exit
+    fi
+
     echo
     echo "DriveNet restart and state check check successful!"
     sleep 3s
+}
+
+function replacetip {
+    echo
+    echo "We will now disconnect the chain tip and replace it with a new one!"
+    sleep 3s
+
+    OLDCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    OLDTIP=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+    ./DriveNet/src/drivenet-cli --regtest invalidateblock $OLDTIP
+
+    sleep 3s # Give some time for the block to be invalidated
+
+    DISCONNECTCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    if [ "$DISCONNECTCOUNT" == "$OLDCOUNT" ]; then
+        echo "Failed to disconnect tip!"
+        exit
+    fi
+
+    ./DriveNet/src/drivenet-cli --regtest generate 1
+
+    NEWTIP=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+    NEWCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    if [ "$OLDTIP" == "$NEWTIP" ] || [ "$OLDCOUNT" != "$NEWCOUNT" ]; then
+        echo "Failed to replace tip!"
+        exit
+    else
+        echo "Tip replaced!"
+        echo "Old tip: $OLDTIP"
+        echo "New tip: $NEWTIP"
+    fi
 }
 
 
@@ -307,7 +339,11 @@ else
     exit
 fi
 
+# Disconnect chain tip, replace with a new one
+replacetip
+
 # Shutdown DriveNet, restart it, and make sure nothing broke
+REINDEX=0
 restartdrivenet
 
 
@@ -354,9 +390,12 @@ else
     exit
 fi
 
+# Disconnect chain tip, replace with a new one
+replacetip
+
 # Shutdown DriveNet, restart it, and make sure nothing broke
 # This time we will also reindex
-REINDEX=1
+REINDEX=0
 restartdrivenet
 
 # Check that proposal has been added to the chain and ready for voting
@@ -403,7 +442,7 @@ else
 fi
 
 # Shutdown DriveNet, restart it, and make sure nothing broke
-REINDEX=1
+REINDEX=0
 restartdrivenet
 
 echo
@@ -878,9 +917,10 @@ fi
 # Shutdown DriveNet, restart it, and make sure nothing broke
 restartdrivenet
 
-#
-# Stage x: Receive WT^ payout
-#
+# Restart again but with reindex
+REINDEX=1
+restartdrivenet
+
 echo
 echo
 echo -e "\e[32mDriveNet integration testing completed!\e[0m"
