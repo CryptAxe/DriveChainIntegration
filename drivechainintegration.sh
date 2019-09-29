@@ -481,6 +481,9 @@ echo "listactivesidechains:"
 echo
 echo "$LISTACTIVESIDECHAINS"
 
+# Disconnect chain tip, replace with a new one
+replacetip
+
 # Shutdown DriveNet, restart it, and make sure nothing broke
 restartdrivenet
 
@@ -571,6 +574,12 @@ fi
 
 # Shutdown DriveNet, restart it, and make sure nothing broke
 REINDEX=1
+restartdrivenet
+
+# Disconnect chain tip, replace with a new one
+replacetip
+
+# Restart again after replacing the chain tip
 restartdrivenet
 
 # TODO verifiy that bmm request was added to chain and removed from mempool
@@ -675,9 +684,47 @@ restartdrivenet
 # Deposit to the sidechain
 #
 
+echo "We will now deposit to the sidechain"
+sleep 3s
+
 # Create sidechain deposit
 ADDRESS=`./bitcoin/src/testchainplus-cli getnewaddress sidechain legacy`
 ./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1
+
+# Verify that there are currently no deposits in the db
+DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+if [ $DEPOSITCOUNT -ne 0 ]; then
+    echo "Error: There is already a deposit in the db when there should be 0!"
+    exit
+else
+    echo "Good: No deposits in db yet"
+fi
+
+# Generate a block to add the deposit to the mainchain
+./DriveNet/src/drivenet-cli --regtest generate 1
+CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 )) # TODO stop using CURRENT_BLOCKS
+
+# Verify that a deposit was added to the db
+DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+if [ $DEPOSITCOUNT -ne 1 ]; then
+    echo "Error: No deposit was added to the db!"
+    exit
+else
+    echo "Good: Deposit added to db"
+fi
+
+# Replace the chain tip and restart
+replacetip
+restartdrivenet
+
+# Verify that a deposit is still in the db after replacing tip & restarting
+DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+if [ $DEPOSITCOUNT -ne 1 ]; then
+    echo "Error: Deposit vanished after replacing tip & restarting!"
+    exit
+else
+    echo "Good: Deposit still in db after replacing tip & restarting"
+fi
 
 # Mine some blocks and BMM the sidechain so it can process the deposit
 COUNTER=1
