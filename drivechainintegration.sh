@@ -892,7 +892,7 @@ sleep 3s
 echo
 echo "Now we will mine enough BMM blocks for the sidechain to create a WT^"
 COUNTER=1
-while [ $COUNTER -le 180 ]
+while [ $COUNTER -le 20 ]
 do
     # Wait a little bit
     echo
@@ -940,8 +940,35 @@ do
 done
 
 # Check if WT^ was created
+HASHWTPRIME=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+HASHWTPRIME=`echo $HASHWTPRIME | python -c 'import json, sys; obj=json.load(sys.stdin); print obj[0]["hashwtprime"]'`
+if [ -z "$HASHWTPRIME" ]; then
+    echo "Error: No WT^ found"
+    exit
+else
+    echo "Good: WT^ found: $HASHWTPRIME"
+fi
 
-# TODO check on WT^ status
+# Check that WT^ has work score
+WORKSCORE=`./DriveNet/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
+if [ $WORKSCORE -lt 1 ]; then
+    echo "Error: No Workscore for WT^!"
+    exit
+else
+    echo "Good: WT^ workscore: $WORKSCORE"
+fi
+
+# Mine blocks until WT^ payout should happen
+BLOCKSREMAINING=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+BLOCKSREMAINING=`echo $BLOCKSREMAINING | python -c 'import json, sys; obj=json.load(sys.stdin); print obj[0]["nblocksleft"]'`
+
+echo
+echo "Blocks remaining in WT^ verification period: $BLOCKSREMAINING"
+sleep 5s
+
+echo "Will now mine $BLOCKSREMAINING blocks"
+./DriveNet/src/drivenet-cli --regtest generate $BLOCKSREMAINING
+
 
 # Check if balance of mainchain address received WT^ payout
 WT_BALANCE=`./DriveNet/src/drivenet-cli --regtest getbalance mainchain`
