@@ -958,6 +958,17 @@ else
     echo "Good: WT^ workscore: $WORKSCORE"
 fi
 
+# Check that if we replace the tip the workscore does not change
+replacetip
+NEWWORKSCORE=`./DriveNet/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
+if [ $NEWWORKSCORE -ne $WORKSCORE ]; then
+    echo "Error: Workscore invalid after replacing tip!"
+    echo "$NEWWORKSCORE != $WORKSCORE"
+    exit
+else
+    echo "Good - Workscore: $NEWWORKSCORE unchanged"
+fi
+
 # Mine blocks until WT^ payout should happen
 BLOCKSREMAINING=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
 BLOCKSREMAINING=`echo $BLOCKSREMAINING | python -c 'import json, sys; obj=json.load(sys.stdin); print obj[0]["nblocksleft"]'`
