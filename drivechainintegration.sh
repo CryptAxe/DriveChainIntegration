@@ -689,7 +689,7 @@ sleep 3s
 
 # Create sidechain deposit
 ADDRESS=`./bitcoin/src/testchainplus-cli getnewaddress sidechain legacy`
-./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1
+./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1 0.01
 
 # Verify that there are currently no deposits in the db
 DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
