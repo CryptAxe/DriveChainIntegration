@@ -95,8 +95,10 @@ function starttestchainplustest {
     --connect=0 \
     --mainchainregtest \
     --verifybmmacceptheader \
+    --verifybmmacceptblock \
     --verifybmmreadblock \
     --verifybmmcheckblock \
+    --verifywtprimeacceptblock \
     --mainchainrpcport=18443 &
 }
 
