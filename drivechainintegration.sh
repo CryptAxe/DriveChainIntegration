@@ -891,10 +891,11 @@ echo "We will now create a wt on the sidechain"
 sleep 3s
 
 # Mine enough BMM blocks for a WT^ to be created and sent to the mainchain
+# We will mine up to 300 blocks before giving up
 echo
 echo "Now we will mine enough BMM blocks for the sidechain to create a WT^"
 COUNTER=1
-while [ $COUNTER -le 20 ]
+while [ $COUNTER -le 300 ]
 do
     # Wait a little bit
     echo
@@ -936,6 +937,13 @@ do
         echo
         echo "ERROR sidechain did not connect BMM block!"
         CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS - 1 ))
+    fi
+
+    # Check for WT^
+    WTPRIMECHECK=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+    if [ "-$WTPRIMECHECK-" != "--" ]; then
+        echo "WT^ has been found!"
+        break
     fi
 
     ((COUNTER++))
