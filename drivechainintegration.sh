@@ -15,6 +15,8 @@ VERSION=0
 SKIP_CLONE=0 # Skip cloning the repositories from github
 SKIP_BUILD=0 # Skip pulling and building repositories
 SKIP_CHECK=0 # Skip make check on repositories
+SKIP_REPLACE_TIP=0 # Skip tests where we replace the chainActive.Tip()
+SKIP_RESTART=0 # Skip tests where we restart and verify state after restart
 for arg in "$@"
 do
     if [ "$arg" == "--help" ]; then
@@ -22,6 +24,8 @@ do
         echo "--skip_clone"
         echo "--skip_build"
         echo "--skip_check"
+        echo "--skip_replace_tip"
+        echo "--skip_restart"
         exit
     elif [ "$arg" == "--skip_clone" ]; then
         SKIP_CLONE=1
@@ -29,6 +33,10 @@ do
         SKIP_BUILD=1
     elif [ "$arg" == "--skip_check" ]; then
         SKIP_CHECK=1
+    elif [ "$arg" == "--skip_replace_tip" ]; then
+        SKIP_REPLACE_TIP=1
+    elif [ "$arg" == "--skip_restart" ]; then
+        SKIP_RESTART=1
     fi
 done
 
@@ -103,6 +111,11 @@ function starttestchainplustest {
 }
 
 function restartdrivenet {
+
+    if [ $SKIP_RESTART -eq 1 ]; then
+        return 0
+    fi
+
     #
     # Shutdown DriveNet, restart it, and make sure nothing broke.
     # Exits the script if anything did break.
@@ -176,6 +189,13 @@ function restartdrivenet {
 }
 
 function replacetip {
+
+    if [ $SKIP_REPLACE_TIP -eq 1 ]; then
+        return 0
+    fi
+
+    # Disconnect chainActive.Tip() and replace it with a new tip
+
     echo
     echo "We will now disconnect the chain tip and replace it with a new one!"
     sleep 3s
@@ -228,7 +248,7 @@ rm -rf ~/.testchainplus
 if [ $SKIP_CLONE -ne 1 ]; then
     echo
     echo "Cloning repositories"
-    echo "Fatal error here just means the repository is already cloned - no problem"
+    echo "If you see \"Fatal error\" here that means the repository is already cloned - no problem"
     git clone https://github.com/drivechain-project/bitcoin
     git clone https://github.com/DriveNetTESTDRIVE/DriveNet
 fi
