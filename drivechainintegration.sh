@@ -17,6 +17,7 @@ SKIP_BUILD=0 # Skip pulling and building repositories
 SKIP_CHECK=0 # Skip make check on repositories
 SKIP_REPLACE_TIP=0 # Skip tests where we replace the chainActive.Tip()
 SKIP_RESTART=0 # Skip tests where we restart and verify state after restart
+SKIP_SHUTDOWN=0 # Don't shutdown the main & side clients when finished testing
 for arg in "$@"
 do
     if [ "$arg" == "--help" ]; then
@@ -26,6 +27,7 @@ do
         echo "--skip_check"
         echo "--skip_replace_tip"
         echo "--skip_restart"
+        echo "--skip_shutdown"
         exit
     elif [ "$arg" == "--skip_clone" ]; then
         SKIP_CLONE=1
@@ -37,6 +39,8 @@ do
         SKIP_REPLACE_TIP=1
     elif [ "$arg" == "--skip_restart" ]; then
         SKIP_RESTART=1
+    elif [ "$arg" == "--skip_shutdown" ]; then
+        SKIP_SHUTDOWN=1
     fi
 done
 
@@ -1040,17 +1044,18 @@ echo
 echo
 echo -e "\e[32mDriveNet integration testing completed!\e[0m"
 echo
-echo "Will now shut down!"
-echo
 echo "Make sure to backup log files you want to keep before running again!"
-
 echo
 echo -e "\e[32mIf you made it here that means everything probably worked!\e[0m"
 echo "If you notice any issues but the script still made it to the end, please"
 echo "open an issue on GitHub!"
 
-# Stop the binaries
-echo
-echo
-./DriveNet/src/drivenet-cli --regtest stop
-./bitcoin/src/testchainplus-cli stop
+if [ $SKIP_SHUTDOWN -ne 1 ]; then
+    # Stop the binaries
+    echo
+    echo
+    echo "Will now shut down!"
+    ./DriveNet/src/drivenet-cli --regtest stop
+    ./bitcoin/src/testchainplus-cli stop
+fi
+
