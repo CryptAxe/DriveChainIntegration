@@ -64,7 +64,7 @@ echo "shutdown and initialization."
 echo
 echo -e "\e[1mREAD: YOUR DATA DIRECTORIES WILL BE DELETED\e[0m"
 echo
-echo "Your data directories ex: ~/.drivenet & ~/.testchainplus and any other"
+echo "Your data directories ex: ~/.drivenet & ~/.testchain and any other"
 echo "sidechain data directories will be deleted!"
 echo
 echo -e "\e[31mWARNING: THIS WILL DELETE YOUR DRIVECHAIN & SIDECHAIN DATA!\e[0m"
@@ -86,7 +86,7 @@ function startdrivenet {
         echo
         echo "DriveNet will be reindexed"
         echo
-        ./DriveNet/src/qt/drivenet-qt \
+        ./mainchain/src/qt/drivenet-qt \
         --reindex \
         --connect=0 \
         --regtest \
@@ -95,15 +95,15 @@ function startdrivenet {
         # Also set REINDEX back to 0
         REINDEX=0
     else
-        ./DriveNet/src/qt/drivenet-qt \
+        ./mainchain/src/qt/drivenet-qt \
         --connect=0 \
         --regtest \
         --defaultwtprimevote=upvote &
     fi
 }
 
-function starttestchainplustest {
-    ./bitcoin/src/qt/testchainplus-qt \
+function starttestchain {
+    ./sidechains/src/qt/testchain-qt \
     --connect=0 \
     --mainchainregtest \
     --verifybmmacceptheader \
@@ -131,19 +131,19 @@ function restartdrivenet {
     sleep 3s
 
     # Record the state before restart
-    HASHSCDB=`./DriveNet/src/drivenet-cli --regtest getscdbhash`
+    HASHSCDB=`./mainchain/src/drivenet-cli --regtest getscdbhash`
     HASHSCDB=`echo $HASHSCDB | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdb"]'`
 
-    HASHSCDBTOTAL=`./DriveNet/src/drivenet-cli --regtest gettotalscdbhash`
+    HASHSCDBTOTAL=`./mainchain/src/drivenet-cli --regtest gettotalscdbhash`
     HASHSCDBTOTAL=`echo $HASHSCDBTOTAL | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdbtotal"]'`
 
     # Count doesn't return a json array like the above commands - so no parsing
-    COUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    COUNT=`./mainchain/src/drivenet-cli --regtest getblockcount`
     # getbestblockhash also doesn't return an array
-    BESTBLOCK=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+    BESTBLOCK=`./mainchain/src/drivenet-cli --regtest getbestblockhash`
 
     # Restart
-    ./DriveNet/src/drivenet-cli --regtest stop
+    ./mainchain/src/drivenet-cli --regtest stop
     sleep 5s # Wait a little bit incase shutdown takes a while
     startdrivenet
 
@@ -152,14 +152,14 @@ function restartdrivenet {
     sleep 10s
 
     # Verify the state after restart
-    HASHSCDBRESTART=`./DriveNet/src/drivenet-cli --regtest getscdbhash`
+    HASHSCDBRESTART=`./mainchain/src/drivenet-cli --regtest getscdbhash`
     HASHSCDBRESTART=`echo $HASHSCDBRESTART | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdb"]'`
 
-    HASHSCDBTOTALRESTART=`./DriveNet/src/drivenet-cli --regtest gettotalscdbhash`
+    HASHSCDBTOTALRESTART=`./mainchain/src/drivenet-cli --regtest gettotalscdbhash`
     HASHSCDBTOTALRESTART=`echo $HASHSCDBTOTALRESTART | python -c 'import json, sys; obj=json.load(sys.stdin); print obj["hashscdbtotal"]'`
 
-    COUNTRESTART=`./DriveNet/src/drivenet-cli --regtest getblockcount`
-    BESTBLOCKRESTART=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
+    COUNTRESTART=`./mainchain/src/drivenet-cli --regtest getblockcount`
+    BESTBLOCKRESTART=`./mainchain/src/drivenet-cli --regtest getbestblockhash`
 
     if [ "$COUNT" != "$COUNTRESTART" ]; then
         echo "Error after restarting DriveNet!"
@@ -204,22 +204,22 @@ function replacetip {
     echo "We will now disconnect the chain tip and replace it with a new one!"
     sleep 3s
 
-    OLDCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
-    OLDTIP=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
-    ./DriveNet/src/drivenet-cli --regtest invalidateblock $OLDTIP
+    OLDCOUNT=`./mainchain/src/drivenet-cli --regtest getblockcount`
+    OLDTIP=`./mainchain/src/drivenet-cli --regtest getbestblockhash`
+    ./mainchain/src/drivenet-cli --regtest invalidateblock $OLDTIP
 
     sleep 3s # Give some time for the block to be invalidated
 
-    DISCONNECTCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    DISCONNECTCOUNT=`./mainchain/src/drivenet-cli --regtest getblockcount`
     if [ "$DISCONNECTCOUNT" == "$OLDCOUNT" ]; then
         echo "Failed to disconnect tip!"
         exit
     fi
 
-    ./DriveNet/src/drivenet-cli --regtest generate 1
+    ./mainchain/src/drivenet-cli --regtest generate 1
 
-    NEWTIP=`./DriveNet/src/drivenet-cli --regtest getbestblockhash`
-    NEWCOUNT=`./DriveNet/src/drivenet-cli --regtest getblockcount`
+    NEWTIP=`./mainchain/src/drivenet-cli --regtest getbestblockhash`
+    NEWCOUNT=`./mainchain/src/drivenet-cli --regtest getblockcount`
     if [ "$OLDTIP" == "$NEWTIP" ] || [ "$OLDCOUNT" != "$NEWCOUNT" ]; then
         echo "Failed to replace tip!"
         exit
@@ -239,7 +239,7 @@ function replacetip {
 
 # Remove old data directories
 rm -rf ~/.drivenet
-rm -rf ~/.testchainplus
+rm -rf ~/.testchain
 
 
 
@@ -253,8 +253,8 @@ if [ $SKIP_CLONE -ne 1 ]; then
     echo
     echo "Cloning repositories"
     echo "If you see \"Fatal error\" here that means the repository is already cloned - no problem"
-    git clone https://github.com/drivechain-project/bitcoin
-    git clone https://github.com/DriveNetTESTDRIVE/DriveNet
+    git clone https://github.com/drivechain-project/mainchain
+    git clone https://github.com/drivechain-project/sidechains
 fi
 
 
@@ -269,9 +269,9 @@ fi
 #
 echo
 echo "Building repositories"
-cd bitcoin
+cd sidechains
 if [ $SKIP_BUILD -ne 1 ]; then
-    git checkout testchainplustest &&
+    git checkout testchain &&
     git pull &&
     ./autogen.sh &&
     ./configure &&
@@ -286,9 +286,9 @@ if [ $SKIP_CHECK -ne 1 ]; then
     fi
 fi
 
-cd ../DriveNet
+cd ../mainchain
 if [ $SKIP_BUILD -ne 1 ]; then
-    git checkout drivechainplustest &&
+    git checkout master &&
     git pull &&
     ./autogen.sh &&
     ./configure &&
@@ -336,7 +336,7 @@ echo
 echo "Checking if the mainchain has started"
 
 # Test that mainchain can receive commands and has 0 blocks
-GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 0"`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -351,10 +351,10 @@ echo
 echo "Mainchain will now generate first 100 blocks"
 sleep 3s
 
-./DriveNet/src/drivenet-cli --regtest generate 100
+./mainchain/src/drivenet-cli --regtest generate 100
 
 # Check that 100 blocks were mined
-GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 100"`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -384,17 +384,17 @@ restartdrivenet
 #
 
 # Create a sidechain proposal
-./DriveNet/src/drivenet-cli --regtest createsidechainproposal "testchainplustest" "testchainplus for integration test" "0186ff51f527ffdcf2413d50bdf8fab1feb20e5f82815dad48c73cf462b8b313"
+./mainchain/src/drivenet-cli --regtest createsidechainproposal "testchain" "testchain for integration test" "0186ff51f527ffdcf2413d50bdf8fab1feb20e5f82815dad48c73cf462b8b313"
 
 # Check that proposal was cached (not in chain yet)
-LISTPROPOSALS=`./DriveNet/src/drivenet-cli --regtest listsidechainproposals`
-COUNT=`echo $LISTPROPOSALS | grep -c "\"title\": \"testchainplustest\""`
+LISTPROPOSALS=`./mainchain/src/drivenet-cli --regtest listsidechainproposals`
+COUNT=`echo $LISTPROPOSALS | grep -c "\"title\": \"testchain\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
-    echo "Sidechain proposal for sidechain testchainplus has been created!"
+    echo "Sidechain proposal for sidechain testchain has been created!"
 else
     echo
-    echo "ERROR failed to create testchainplus sidechain proposal!"
+    echo "ERROR failed to create testchain sidechain proposal!"
     exit
 fi
 
@@ -402,10 +402,10 @@ echo
 echo "Will now mine a block so that sidechain proposal is added to the chain"
 
 # Mine one block, proposal should be in chain after that
-./DriveNet/src/drivenet-cli --regtest generate 1
+./mainchain/src/drivenet-cli --regtest generate 1
 
 # Check that we have 101 blocks now
-GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 101"`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -425,8 +425,8 @@ REINDEX=0
 restartdrivenet
 
 # Check that proposal has been added to the chain and ready for voting
-LISTACTIVATION=`./DriveNet/src/drivenet-cli --regtest listsidechainactivationstatus`
-COUNT=`echo $LISTACTIVATION | grep -c "\"title\": \"testchainplustest\""`
+LISTACTIVATION=`./mainchain/src/drivenet-cli --regtest listsidechainactivationstatus`
+COUNT=`echo $LISTACTIVATION | grep -c "\"title\": \"testchain\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
     echo "Sidechain proposal made it into the chain!"
@@ -457,7 +457,7 @@ else
 fi
 
 # Check that there are currently no active sidechains
-LISTACTIVESIDECHAINS=`./DriveNet/src/drivenet-cli --regtest listactivesidechains`
+LISTACTIVESIDECHAINS=`./mainchain/src/drivenet-cli --regtest listactivesidechains`
 if [ "$LISTACTIVESIDECHAINS" == $'[\n]' ]; then
     echo
     echo "Good: no sidechains are active yet"
@@ -476,10 +476,10 @@ echo "Will now mine enough blocks to activate the sidechain"
 sleep 5s
 
 # Mine enough blocks to activate the sidechain
-./DriveNet/src/drivenet-cli --regtest generate 255
+./mainchain/src/drivenet-cli --regtest generate 255
 
 # Check that 255 blocks were mined
-GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 356"`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -491,8 +491,8 @@ else
 fi
 
 # Check that the sidechain has been activated
-LISTACTIVESIDECHAINS=`./DriveNet/src/drivenet-cli --regtest listactivesidechains`
-COUNT=`echo $LISTACTIVESIDECHAINS | grep -c "\"title\": \"testchainplustest\""`
+LISTACTIVESIDECHAINS=`./mainchain/src/drivenet-cli --regtest listactivesidechains`
+COUNT=`echo $LISTACTIVESIDECHAINS | grep -c "\"title\": \"testchain\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
     echo "Sidechain has activated!"
@@ -522,31 +522,31 @@ restartdrivenet
 # Get sidechain configured and running
 #
 
-# Create configuration file for sidechain testchainplus
+# Create configuration file for sidechain testchain
 echo
 echo "Creating sidechain configuration file"
-mkdir ~/.testchainplus/
-touch ~/.testchainplus/testchainplus.conf
-echo "rpcuser=patrick" > ~/.testchainplus/testchainplus.conf
-echo "rpcpassword=integrationtesting" >> ~/.testchainplus/testchainplus.conf
-echo "server=1" >> ~/.testchainplus/testchainplus.conf
+mkdir ~/.testchain/
+touch ~/.testchain/testchain.conf
+echo "rpcuser=patrick" > ~/.testchain/testchain.conf
+echo "rpcpassword=integrationtesting" >> ~/.testchain/testchain.conf
+echo "server=1" >> ~/.testchain/testchain.conf
 
 echo
-echo "The sidechain testchainplus will now be started"
+echo "The sidechain testchain will now be started"
 sleep 5s
 
 # Start the sidechain and test that it can receive commands and has 0 blocks
-starttestchainplustest
+starttestchain
 
 echo
-echo "Waiting for testchainplus to start"
+echo "Waiting for testchain to start"
 sleep 5s
 
 echo
 echo "Checking if the sidechain has started"
 
 # Test that sidechain can receive commands and has 0 blocks
-GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+GETINFO=`./sidechains/src/testchain-cli getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 0"`
 if [ "$COUNT" -eq 1 ]; then
     echo "Sidechain up and running!"
@@ -572,7 +572,7 @@ fi
 # send it to the mainchain node, which will add it to the mempool
 echo
 echo "Going to refresh BMM on the sidechain and send BMM request to mainchain"
-./bitcoin/src/testchainplus-cli refreshbmm
+./sidechains/src/testchain-cli refreshbmm
 
 # TODO check that mainchain has BMM request in mempool
 
@@ -584,10 +584,10 @@ echo
 echo "Mining block on the mainchain, should include BMM commit"
 
 # Mine a mainchain block, which should include the BMM request we just made
-./DriveNet/src/drivenet-cli --regtest generate 1
+./mainchain/src/drivenet-cli --regtest generate 1
 
 # Check that the block was mined
-GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 357"`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -616,10 +616,10 @@ restartdrivenet
 echo
 echo "Will now refresh BMM on the sidechain again and look for our BMM commit"
 echo "BMM block will be connected to the sidechain if BMM commit was made."
-./bitcoin/src/testchainplus-cli refreshbmm
+./sidechains/src/testchain-cli refreshbmm
 
 # Check that BMM block was added to the sidechain
-GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+GETINFO=`./sidechains/src/testchain-cli getmininginfo`
 COUNT=`echo $GETINFO | grep -c "\"blocks\": 1"`
 if [ "$COUNT" -eq 1 ]; then
     echo "Sidechain connected BMM block!"
@@ -644,13 +644,13 @@ do
 
     echo "Mining mainchain block"
     # Generate mainchain block
-    ./DriveNet/src/drivenet-cli --regtest generate 1
+    ./mainchain/src/drivenet-cli --regtest generate 1
 
     CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
 
 
     # Check that mainchain block was connected
-    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
 
     echo $GETINFO
     echo $CURRENT_BLOCKS
@@ -667,12 +667,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchainplus-cli refreshbmm
+    ./sidechains/src/testchain-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+    GETINFO=`./sidechains/src/testchain-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -714,11 +714,11 @@ echo "We will now deposit to the sidechain"
 sleep 3s
 
 # Create sidechain deposit
-ADDRESS=`./bitcoin/src/testchainplus-cli getnewaddress sidechain legacy`
-./DriveNet/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1 0.01
+ADDRESS=`./sidechains/src/testchain-cli getnewaddress sidechain legacy`
+./mainchain/src/drivenet-cli --regtest createsidechaindeposit 0 $ADDRESS 1 0.01
 
 # Verify that there are currently no deposits in the db
-DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+DEPOSITCOUNT=`./mainchain/src/drivenet-cli --regtest countsidechaindeposits 0`
 if [ $DEPOSITCOUNT -ne 0 ]; then
     echo "Error: There is already a deposit in the db when there should be 0!"
     exit
@@ -727,11 +727,11 @@ else
 fi
 
 # Generate a block to add the deposit to the mainchain
-./DriveNet/src/drivenet-cli --regtest generate 1
+./mainchain/src/drivenet-cli --regtest generate 1
 CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 )) # TODO stop using CURRENT_BLOCKS
 
 # Verify that a deposit was added to the db
-DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+DEPOSITCOUNT=`./mainchain/src/drivenet-cli --regtest countsidechaindeposits 0`
 if [ $DEPOSITCOUNT -ne 1 ]; then
     echo "Error: No deposit was added to the db!"
     exit
@@ -744,7 +744,7 @@ replacetip
 restartdrivenet
 
 # Verify that a deposit is still in the db after replacing tip & restarting
-DEPOSITCOUNT=`./DriveNet/src/drivenet-cli --regtest countsidechaindeposits 0`
+DEPOSITCOUNT=`./mainchain/src/drivenet-cli --regtest countsidechaindeposits 0`
 if [ $DEPOSITCOUNT -ne 1 ]; then
     echo "Error: Deposit vanished after replacing tip & restarting!"
     exit
@@ -763,12 +763,12 @@ do
 
     echo "Mining mainchain block"
     # Generate mainchain block
-    ./DriveNet/src/drivenet-cli --regtest generate 1
+    ./mainchain/src/drivenet-cli --regtest generate 1
 
     CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
 
     # Check that mainchain block was connected
-    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -782,12 +782,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchainplus-cli refreshbmm
+    ./sidechains/src/testchain-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+    GETINFO=`./sidechains/src/testchain-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -802,7 +802,7 @@ do
 done
 
 # Check if the deposit made it to the sidechain
-LIST_TRANSACTIONS=`./bitcoin/src/testchainplus-cli listtransactions`
+LIST_TRANSACTIONS=`./sidechains/src/testchain-cli listtransactions`
 COUNT=`echo $LIST_TRANSACTIONS | grep -c "\"address\": \"$ADDRESS\""`
 if [ "$COUNT" -eq 1 ]; then
     echo
@@ -835,12 +835,12 @@ do
 
     echo "Mining mainchain block"
     # Generate mainchain block
-    ./DriveNet/src/drivenet-cli --regtest generate 1
+    ./mainchain/src/drivenet-cli --regtest generate 1
 
     CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
 
     # Check that mainchain block was connected
-    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -854,12 +854,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchainplus-cli refreshbmm
+    ./sidechains/src/testchain-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+    GETINFO=`./sidechains/src/testchain-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -875,7 +875,7 @@ done
 
 
 # Check that the deposit has been added to our sidechain balance
-BALANCE=`./bitcoin/src/testchainplus-cli getbalance`
+BALANCE=`./sidechains/src/testchain-cli getbalance`
 BC=`echo "$BALANCE>0.9" | bc`
 if [ $BC -eq 1 ]; then
     echo
@@ -906,12 +906,12 @@ restartdrivenet
 #
 
 # Get a mainchain address
-MAINCHAIN_ADDRESS=`./DriveNet/src/drivenet-cli --regtest getnewaddress mainchain legacy`
+MAINCHAIN_ADDRESS=`./mainchain/src/drivenet-cli --regtest getnewaddress mainchain legacy`
 
 # Call the CreateWT RPC
 echo
 echo "We will now create a wt on the sidechain"
-./bitcoin/src/testchainplus-cli createwt $MAINCHAIN_ADDRESS 0.5
+./sidechains/src/testchain-cli createwt $MAINCHAIN_ADDRESS 0.5
 sleep 3s
 
 # Mine enough BMM blocks for a WT^ to be created and sent to the mainchain
@@ -928,12 +928,12 @@ do
 
     echo "Mining mainchain block"
     # Generate mainchain block
-    ./DriveNet/src/drivenet-cli --regtest generate 1
+    ./mainchain/src/drivenet-cli --regtest generate 1
 
     CURRENT_BLOCKS=$(( CURRENT_BLOCKS + 1 ))
 
     # Check that mainchain block was connected
-    GETINFO=`./DriveNet/src/drivenet-cli --regtest getmininginfo`
+    GETINFO=`./mainchain/src/drivenet-cli --regtest getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -947,12 +947,12 @@ do
     # Refresh BMM on the sidechain
     echo
     echo "Refreshing BMM on the sidechain..."
-    ./bitcoin/src/testchainplus-cli refreshbmm
+    ./sidechains/src/testchain-cli refreshbmm
 
     CURRENT_SIDE_BLOCKS=$(( CURRENT_SIDE_BLOCKS + 1 ))
 
     # Check that BMM block was added to the side chain
-    GETINFO=`./bitcoin/src/testchainplus-cli getmininginfo`
+    GETINFO=`./sidechains/src/testchain-cli getmininginfo`
     COUNT=`echo $GETINFO | grep -c "\"blocks\": $CURRENT_SIDE_BLOCKS"`
     if [ "$COUNT" -eq 1 ]; then
         echo
@@ -964,7 +964,7 @@ do
     fi
 
     # Check for WT^
-    WTPRIMECHECK=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+    WTPRIMECHECK=`./mainchain/src/drivenet-cli --regtest listwtprimestatus 0`
     if [ "-$WTPRIMECHECK-" != "--" ]; then
         echo "WT^ has been found!"
         break
@@ -974,7 +974,7 @@ do
 done
 
 # Check if WT^ was created
-HASHWTPRIME=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+HASHWTPRIME=`./mainchain/src/drivenet-cli --regtest listwtprimestatus 0`
 HASHWTPRIME=`echo $HASHWTPRIME | python -c 'import json, sys; obj=json.load(sys.stdin); print obj[0]["hashwtprime"]'`
 if [ -z "$HASHWTPRIME" ]; then
     echo "Error: No WT^ found"
@@ -984,7 +984,7 @@ else
 fi
 
 # Check that WT^ has work score
-WORKSCORE=`./DriveNet/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
+WORKSCORE=`./mainchain/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
 if [ $WORKSCORE -lt 1 ]; then
     echo "Error: No Workscore for WT^!"
     exit
@@ -994,7 +994,7 @@ fi
 
 # Check that if we replace the tip the workscore does not change
 replacetip
-NEWWORKSCORE=`./DriveNet/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
+NEWWORKSCORE=`./mainchain/src/drivenet-cli --regtest getworkscore 0 $HASHWTPRIME`
 if [ $NEWWORKSCORE -ne $WORKSCORE ]; then
     echo "Error: Workscore invalid after replacing tip!"
     echo "$NEWWORKSCORE != $WORKSCORE"
@@ -1004,7 +1004,7 @@ else
 fi
 
 # Mine blocks until WT^ payout should happen
-BLOCKSREMAINING=`./DriveNet/src/drivenet-cli --regtest listwtprimestatus 0`
+BLOCKSREMAINING=`./mainchain/src/drivenet-cli --regtest listwtprimestatus 0`
 BLOCKSREMAINING=`echo $BLOCKSREMAINING | python -c 'import json, sys; obj=json.load(sys.stdin); print obj[0]["nblocksleft"]'`
 
 echo
@@ -1012,11 +1012,11 @@ echo "Blocks remaining in WT^ verification period: $BLOCKSREMAINING"
 sleep 5s
 
 echo "Will now mine $BLOCKSREMAINING blocks"
-./DriveNet/src/drivenet-cli --regtest generate $BLOCKSREMAINING
+./mainchain/src/drivenet-cli --regtest generate $BLOCKSREMAINING
 
 
 # Check if balance of mainchain address received WT^ payout
-WT_BALANCE=`./DriveNet/src/drivenet-cli --regtest getbalance mainchain`
+WT_BALANCE=`./mainchain/src/drivenet-cli --regtest getbalance mainchain`
 BC=`echo "$WT_BALANCE>0.4" | bc`
 if [ $BC -eq 1 ]; then
     echo
@@ -1055,7 +1055,7 @@ if [ $SKIP_SHUTDOWN -ne 1 ]; then
     echo
     echo
     echo "Will now shut down!"
-    ./DriveNet/src/drivenet-cli --regtest stop
-    ./bitcoin/src/testchainplus-cli stop
+    ./mainchain/src/drivenet-cli --regtest stop
+    ./sidechains/src/testchain-cli stop
 fi
 
