@@ -602,12 +602,6 @@ fi
 REINDEX=1
 restartdrivenet
 
-# Disconnect chain tip, replace with a new one
-replacetip
-
-# Restart again after replacing the chain tip
-restartdrivenet
-
 # TODO verifiy that bmm request was added to chain and removed from mempool
 
 # Refresh BMM again, this time the block we created the first BMM request for
